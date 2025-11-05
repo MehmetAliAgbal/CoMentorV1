@@ -60,6 +60,9 @@ if (!string.IsNullOrEmpty(jwtKey))
 // Di�er servis kay�tlar� (�rnek)
 builder.Services.AddScoped<IUserStatsService, UserStatsService>();
 
+// Health Checks
+builder.Services.AddHealthChecks();
+
 // Controller ve Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
