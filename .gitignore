@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local appsettings for API (should not be committed)
+/CoMentor.API/appsettings.Development.json

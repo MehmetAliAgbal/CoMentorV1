@@ -1,0 +1,6 @@
+@CoMentor.API_HostAddress = http://localhost:5107
+
+GET {{CoMentor.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,18 @@
+﻿namespace CoMentor.Domain.Entities
+{
+    public class Achievement
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = null!;
+        public string? Description { get; set; }
+        public string? Icon { get; set; }
+        public int? XpRequirement { get; set; }
+        public int? StreakRequirement { get; set; }
+        public int? StudyHoursRequirement { get; set; }
+        public string? BadgeColor { get; set; }
+        public bool IsActive { get; set; } = true;
+
+        public ICollection<UserAchievement> UserAchievements { get; set; }
+    }
+}
+
