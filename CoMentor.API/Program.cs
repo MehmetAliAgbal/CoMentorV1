@@ -20,6 +20,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // register auth service (IAuthService implemented in Infrastructure)
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+// register trial exam service
+builder.Services.AddScoped<ITrialExamService, TrialExamService>();
+
+// register pomodoro service
+builder.Services.AddScoped<IPomodoroService, PomodoroService>();
+
+// register leaderboard service
+builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
+
 // CORS - allow frontend dev origins (adjust as needed)
 builder.Services.AddCors(options =>
 {
