@@ -9,6 +9,7 @@ namespace CoMentor.Infrastructure.Services;
 public class PomodoroService : IPomodoroService
 {
     private readonly AppDbContext _db;
+    private readonly ILeagueService _leagueService;
 
     // XP hesaplama sabitleri
     private const int XP_PER_MINUTE = 2; // Her dakika için 2 XP
@@ -16,9 +17,10 @@ public class PomodoroService : IPomodoroService
 
     private static readonly string[] DayNames = { "Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi" };
 
-    public PomodoroService(AppDbContext db)
+    public PomodoroService(AppDbContext db, ILeagueService leagueService)
     {
         _db = db;
+        _leagueService = leagueService;
     }
 
     #region Pomodoro Session
@@ -115,6 +117,12 @@ public class PomodoroService : IPomodoroService
         }
 
         await _db.SaveChangesAsync();
+
+        // Lig kontrolü yap (XP değiştiği için lig yükselmiş olabilir)
+        if (xpEarned > 0)
+        {
+            await _leagueService.CheckAndUpdateUserLeagueAsync(userId);
+        }
 
         return await GetPomodoroByIdAsync(sessionId);
     }

@@ -29,6 +29,9 @@ builder.Services.AddScoped<IPomodoroService, PomodoroService>();
 // register leaderboard service
 builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
 
+// register league service (XP seviye sistemi)
+builder.Services.AddScoped<ILeagueService, LeagueService>();
+
 // CORS - allow frontend dev origins (adjust as needed)
 builder.Services.AddCors(options =>
 {

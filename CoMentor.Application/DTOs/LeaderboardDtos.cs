@@ -27,6 +27,12 @@ namespace CoMentor.Application.DTOs
         public int TotalXp { get; set; }
         public int CurrentStreak { get; set; }
         public bool IsCurrentUser { get; set; }
+        
+        // Lig bilgileri
+        public int? LeagueId { get; set; }
+        public string? LeagueName { get; set; }
+        public string? LeagueIcon { get; set; }
+        public string? LeagueColor { get; set; }
     }
 
     /// <summary>
@@ -81,6 +87,25 @@ namespace CoMentor.Application.DTOs
         public GeneralRankDto GeneralRank { get; set; } = new();
         public SchoolRankDto? SchoolRank { get; set; }
         public GradeRankDto? GradeRank { get; set; }
+        
+        // Lig bilgileri
+        public UserLeagueInfoDto? LeagueInfo { get; set; }
+    }
+
+    /// <summary>
+    /// Kullanıcının lig bilgisi özeti
+    /// </summary>
+    public class UserLeagueInfoDto
+    {
+        public int LeagueId { get; set; }
+        public string LeagueName { get; set; } = null!;
+        public string? LeagueIcon { get; set; }
+        public string? LeagueColor { get; set; }
+        public int RankInLeague { get; set; }
+        public int TotalUsersInLeague { get; set; }
+        public int XpToNextLeague { get; set; }
+        public double ProgressPercentage { get; set; }
+        public string? NextLeagueName { get; set; }
     }
 
     public class GeneralRankDto

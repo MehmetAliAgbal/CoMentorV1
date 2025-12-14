@@ -9,10 +9,12 @@ namespace CoMentor.Infrastructure.Services;
 public class LeaderboardService : ILeaderboardService
 {
     private readonly AppDbContext _db;
+    private readonly ILeagueService _leagueService;
 
-    public LeaderboardService(AppDbContext db)
+    public LeaderboardService(AppDbContext db, ILeagueService leagueService)
     {
         _db = db;
+        _leagueService = leagueService;
     }
 
     #region Leaderboard
@@ -28,7 +30,7 @@ public class LeaderboardService : ILeaderboardService
             .Take(limit)
             .ToListAsync();
 
-        var rankings = BuildRankings(users, currentUserId);
+        var rankings = await BuildRankingsWithLeagueAsync(users, currentUserId);
         var currentUserRank = await GetCurrentUserRankAsync(currentUserId, rankings, null, null);
 
         return new LeaderboardResponse
@@ -67,7 +69,7 @@ public class LeaderboardService : ILeaderboardService
             .Take(limit)
             .ToListAsync();
 
-        var rankings = BuildRankings(users, userId);
+        var rankings = await BuildRankingsWithLeagueAsync(users, userId);
         var currentUserRank = await GetCurrentUserRankAsync(userId, rankings, schoolName, null);
 
         return new LeaderboardResponse
@@ -106,7 +108,7 @@ public class LeaderboardService : ILeaderboardService
             .Take(limit)
             .ToListAsync();
 
-        var rankings = BuildRankings(users, userId);
+        var rankings = await BuildRankingsWithLeagueAsync(users, userId);
         var currentUserRank = await GetCurrentUserRankAsync(userId, rankings, null, gradeLevel);
 
         var gradeName = GetGradeName(gradeLevel);
@@ -213,6 +215,25 @@ public class LeaderboardService : ILeaderboardService
             };
         }
 
+        // Lig bilgisi
+        UserLeagueInfoDto? leagueInfo = null;
+        var userLeague = await _leagueService.GetUserLeagueAsync(userId);
+        if (userLeague != null)
+        {
+            leagueInfo = new UserLeagueInfoDto
+            {
+                LeagueId = userLeague.CurrentLeague.Id,
+                LeagueName = userLeague.CurrentLeague.Name,
+                LeagueIcon = userLeague.CurrentLeague.Icon,
+                LeagueColor = userLeague.CurrentLeague.LeagueColor,
+                RankInLeague = userLeague.RankInLeague,
+                TotalUsersInLeague = userLeague.TotalUsersInLeague,
+                XpToNextLeague = userLeague.XpToNextLeague,
+                ProgressPercentage = userLeague.ProgressPercentage,
+                NextLeagueName = userLeague.NextLeague?.Name
+            };
+        }
+
         return new UserXpSummaryDto
         {
             UserId = userId,
@@ -223,7 +244,8 @@ public class LeaderboardService : ILeaderboardService
             CurrentStreak = user.CurrentStreak,
             GeneralRank = new GeneralRankDto { Rank = generalRank, TotalUsers = totalUsers },
             SchoolRank = schoolRank,
-            GradeRank = gradeRank
+            GradeRank = gradeRank,
+            LeagueInfo = leagueInfo
         };
     }
 
@@ -243,13 +265,22 @@ public class LeaderboardService : ILeaderboardService
         };
     }
 
-    private static List<LeaderboardItemDto> BuildRankings(List<User> users, int? currentUserId)
+    private async Task<List<LeaderboardItemDto>> BuildRankingsWithLeagueAsync(List<User> users, int? currentUserId)
     {
         var rankings = new List<LeaderboardItemDto>();
         int rank = 1;
 
+        // Tüm ligleri önbelleğe al
+        var leagues = await _db.Leagues.ToListAsync();
+
         foreach (var user in users)
         {
+            // Kullanıcının ligini bul
+            var userLeague = leagues
+                .Where(l => l.MinXp <= user.TotalXp && (l.MaxXp == null || l.MaxXp >= user.TotalXp))
+                .OrderByDescending(l => l.RankOrder)
+                .FirstOrDefault();
+
             rankings.Add(new LeaderboardItemDto
             {
                 Rank = rank,
@@ -261,7 +292,12 @@ public class LeaderboardService : ILeaderboardService
                 GradeLevel = user.GradeLevel,
                 TotalXp = user.TotalXp,
                 CurrentStreak = user.CurrentStreak,
-                IsCurrentUser = currentUserId.HasValue && user.Id == currentUserId.Value
+                IsCurrentUser = currentUserId.HasValue && user.Id == currentUserId.Value,
+                // Lig bilgileri
+                LeagueId = userLeague?.Id,
+                LeagueName = userLeague?.Name,
+                LeagueIcon = userLeague?.Icon,
+                LeagueColor = userLeague?.LeagueColor
             });
             rank++;
         }
@@ -303,6 +339,12 @@ public class LeaderboardService : ILeaderboardService
             userRank = await _db.Users.CountAsync(u => u.TotalXp > userXp);
         }
 
+        // Kullanıcının ligini bul
+        var userLeague = await _db.Leagues
+            .Where(l => l.MinXp <= user.TotalXp && (l.MaxXp == null || l.MaxXp >= user.TotalXp))
+            .OrderByDescending(l => l.RankOrder)
+            .FirstOrDefaultAsync();
+
         return new LeaderboardItemDto
         {
             Rank = userRank + 1,
@@ -314,7 +356,12 @@ public class LeaderboardService : ILeaderboardService
             GradeLevel = user.GradeLevel,
             TotalXp = user.TotalXp,
             CurrentStreak = user.CurrentStreak,
-            IsCurrentUser = true
+            IsCurrentUser = true,
+            // Lig bilgileri
+            LeagueId = userLeague?.Id,
+            LeagueName = userLeague?.Name,
+            LeagueIcon = userLeague?.Icon,
+            LeagueColor = userLeague?.LeagueColor
         };
     }
 
