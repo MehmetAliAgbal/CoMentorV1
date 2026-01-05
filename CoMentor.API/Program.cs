@@ -32,15 +32,34 @@ builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
 // register league service (XP seviye sistemi)
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 
+// register achievement service
+builder.Services.AddScoped<IAchievementService, AchievementService>();
+
+// register study streak service
+builder.Services.AddScoped<IStudyStreakService, StudyStreakService>();
+
 // CORS - allow frontend dev origins (adjust as needed)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://localhost:4200")
+        policy.WithOrigins(
+                "http://localhost:3000", 
+                "http://localhost:5173", 
+                "http://localhost:4200",
+                "https://earleen-glyphographic-subtransversely.ngrok-free.dev"
+              )
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
+    });
+    
+    // Tüm origin'lere izin veren policy (development için)
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
@@ -117,7 +136,8 @@ app.UseSwaggerUI(c =>
 });
 
 // use CORS (must be before endpoints)
-app.UseCors("DevCors");
+// Development için tüm origin'lere izin ver
+app.UseCors("AllowAll");
 
 app.UseHttpsRedirection();
 
