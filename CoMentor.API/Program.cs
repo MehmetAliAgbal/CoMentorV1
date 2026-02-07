@@ -38,6 +38,9 @@ builder.Services.AddScoped<IAchievementService, AchievementService>();
 // register study streak service
 builder.Services.AddScoped<IStudyStreakService, StudyStreakService>();
 
+// register AI study coach service
+builder.Services.AddScoped<IAIStudyCoachService, AIStudyCoachService>();
+
 // CORS - allow frontend dev origins (adjust as needed)
 builder.Services.AddCors(options =>
 {
