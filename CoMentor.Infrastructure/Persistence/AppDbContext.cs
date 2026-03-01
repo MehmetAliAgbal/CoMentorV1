@@ -27,6 +27,12 @@ namespace CoMentor.Infrastructure.Persistence
         public DbSet<StudyStreak> StudyStreaks { get; set; }
         public DbSet<VideoRecommendation> VideoRecommendations { get; set; }
 
+        public DbSet<Teacher> Teachers { get; set; }
+        public DbSet<Classroom> Classrooms { get; set; }
+        public DbSet<TeacherClassroom> TeacherClassrooms { get; set; }
+        public DbSet<Announcement> Announcements { get; set; }
+        public DbSet<Homework> Homeworks { get; set; }
+
         // SQL VIEW (readonly)
         public DbSet<UserStatsDto> UserStats { get; set; }
 
@@ -36,6 +42,65 @@ namespace CoMentor.Infrastructure.Persistence
 
             // SQL View - ReadOnly DTO
             modelBuilder.Entity<UserStatsDto>().HasNoKey().ToView("user_stats");
+
+            // Teacher - Classroom Many-to-Many
+            modelBuilder.Entity<TeacherClassroom>()
+                .HasKey(tc => new { tc.TeacherId, tc.ClassroomId });
+
+            modelBuilder.Entity<TeacherClassroom>()
+                .HasOne(tc => tc.Teacher)
+                .WithMany(t => t.TeacherClassrooms)
+                .HasForeignKey(tc => tc.TeacherId);
+
+            modelBuilder.Entity<TeacherClassroom>()
+                .HasOne(tc => tc.Classroom)
+                .WithMany(c => c.TeacherClassrooms)
+                .HasForeignKey(tc => tc.ClassroomId);
+
+            // User - Classroom One-to-Many
+            modelBuilder.Entity<User>()
+                .HasOne(u => u.Classroom)
+                .WithMany(c => c.Students)
+                .HasForeignKey(u => u.ClassroomId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Announcement Target Configuration
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.Teacher)
+                .WithMany(t => t.Announcements)
+                .HasForeignKey(a => a.TeacherId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.Classroom)
+                .WithMany(c => c.Announcements)
+                .HasForeignKey(a => a.ClassroomId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.User)
+                .WithMany() // No nav property on User intentionally
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Homework Target Configuration
+            modelBuilder.Entity<Homework>()
+                .HasOne(h => h.Teacher)
+                .WithMany(t => t.Homeworks)
+                .HasForeignKey(h => h.TeacherId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Homework>()
+                .HasOne(h => h.Classroom)
+                .WithMany(c => c.Homeworks)
+                .HasForeignKey(h => h.ClassroomId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Homework>()
+                .HasOne(h => h.User)
+                .WithMany() // No nav property on User intentionally
+                .HasForeignKey(h => h.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // League Seed Data - XP Seviye Sistemi
             modelBuilder.Entity<League>().HasData(

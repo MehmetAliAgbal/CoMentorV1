@@ -33,14 +33,16 @@ builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 
 // register achievement service
-builder.Services.AddScoped<IAchievementService, AchievementService>();
-
-// register study streak service
+builder.Services.AddScoped<ILeagueService, LeagueService>();
+// builder.Services.AddScoped<IDailyGoalService, DailyGoalService>();
 builder.Services.AddScoped<IStudyStreakService, StudyStreakService>();
+// builder.Services.AddScoped<IVideoRecommendationService, VideoRecommendationService>();
+// builder.Services.AddScoped<IAIStudyCoachService, DeepSeekAIStudyCoachService>();
+builder.Services.AddScoped<ITeacherAuthService, TeacherAuthService>();
+builder.Services.AddScoped<ITeacherPanelService, TeacherPanelService>();
 
-// register AI study coach service
-builder.Services.AddScoped<IAIStudyCoachService, AIStudyCoachService>();
-
+// ==========================================
+// 4) Background Services (Cron vb.)
 // CORS - allow frontend dev origins (adjust as needed)
 builder.Services.AddCors(options =>
 {
