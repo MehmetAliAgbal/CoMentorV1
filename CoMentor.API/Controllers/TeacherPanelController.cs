@@ -168,5 +168,23 @@ public class TeacherPanelController : ControllerBase
         }
     }
 
+    [HttpGet("classrooms/{classroomId}/students/{studentId}/trial-exams/{trialId}")]
+    public async Task<IActionResult> GetStudentTrialExamDetail(int classroomId, int studentId, int trialId)
+    {
+        var teacherId = GetTeacherId();
+        try
+        {
+            var result = await _teacherPanelService.GetStudentTrialExamDetailAsync(teacherId, studentId, trialId);
+            if (result == null) 
+                return NotFound(new { Message = "Deneme veya öğrenci bulunamadı." });
+            
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return BadRequest(new { Message = "Bu öğrencinin deneme detayını görme yetkiniz yok." });
+        }
+    }
+
     #endregion
 }

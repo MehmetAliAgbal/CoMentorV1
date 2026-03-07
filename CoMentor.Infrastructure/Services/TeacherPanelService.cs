@@ -158,6 +158,30 @@ public class TeacherPanelService : ITeacherPanelService
         };
     }
 
+    public async Task<List<AnnouncementDto>> GetStudentAnnouncementsAsync(int studentId)
+    {
+        var student = await _db.Users.FindAsync(studentId);
+        if (student == null) return new List<AnnouncementDto>();
+
+        return await _db.Announcements
+            .Where(a => a.UserId == studentId || (student.ClassroomId != null && a.ClassroomId == student.ClassroomId))
+            .Select(a => new AnnouncementDto
+            {
+                Id = a.Id,
+                TeacherId = a.TeacherId,
+                TeacherName = $"{a.Teacher.Name} {a.Teacher.Surname}",
+                Title = a.Title,
+                Message = a.Message,
+                CreatedAt = a.CreatedAt,
+                ClassroomId = a.ClassroomId,
+                ClassroomName = a.Classroom != null ? a.Classroom.Name : null,
+                UserId = a.UserId,
+                UserName = a.User != null ? $"{a.User.Name} {a.User.Surname}" : null
+            })
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync();
+    }
+
     #endregion
 
     #region Homeworks
@@ -225,6 +249,32 @@ public class TeacherPanelService : ITeacherPanelService
         };
     }
 
+    public async Task<List<HomeworkDto>> GetStudentHomeworksAsync(int studentId)
+    {
+        var student = await _db.Users.FindAsync(studentId);
+        if (student == null) return new List<HomeworkDto>();
+
+        return await _db.Homeworks
+            .Where(h => h.UserId == studentId || (student.ClassroomId != null && h.ClassroomId == student.ClassroomId))
+            .Select(h => new HomeworkDto
+            {
+                Id = h.Id,
+                TeacherId = h.TeacherId,
+                TeacherName = $"{h.Teacher.Name} {h.Teacher.Surname}",
+                Subject = h.Subject,
+                Topic = h.Topic,
+                Description = h.Description,
+                DueDate = h.DueDate,
+                CreatedAt = h.CreatedAt,
+                ClassroomId = h.ClassroomId,
+                ClassroomName = h.Classroom != null ? h.Classroom.Name : null,
+                UserId = h.UserId,
+                UserName = h.User != null ? $"{h.User.Name} {h.User.Surname}" : null
+            })
+            .OrderByDescending(h => h.DueDate)
+            .ToListAsync();
+    }
+
     #endregion
 
     #region Student Monitoring
@@ -235,21 +285,44 @@ public class TeacherPanelService : ITeacherPanelService
         var hasAccess = await _db.TeacherClassrooms.AnyAsync(tc => tc.TeacherId == teacherId && tc.ClassroomId == classroomId);
         if (!hasAccess) return new List<StudentPerformanceDto>();
 
-        return await _db.Users
+        var users = await _db.Users
             .Where(u => u.ClassroomId == classroomId)
-            .Select(u => new StudentPerformanceDto
+            .Include(u => u.TrialExams)
+                .ThenInclude(te => te.SubjectScores)
+            .ToListAsync();
+
+        return users
+            .Select(u =>
             {
-                StudentId = u.Id,
-                StudentName = $"{u.Name} {u.Surname}",
-                AvatarUrl = u.AvatarUrl,
-                TargetExam = u.TargetExam,
-                TotalTrialExams = u.TrialExams.Count,
-                AverageNetScore = u.TrialExams.Any() 
-                    ? u.TrialExams.Average(te => te.SubjectScores != null ? te.SubjectScores.Sum(ss => ss.NetScore) : 0) 
-                    : 0
+                var totalTrialExams = u.TrialExams?.Count ?? 0;
+
+                double averageNetScore = 0;
+                if (u.TrialExams != null && u.TrialExams.Any())
+                {
+                    var examNetScores = u.TrialExams.Select(te =>
+                        te.SubjectScores != null && te.SubjectScores.Any()
+                            ? te.SubjectScores.Sum(ss => ss.NetScore)
+                            : 0
+                    );
+
+                    if (examNetScores.Any())
+                    {
+                        averageNetScore = examNetScores.Average();
+                    }
+                }
+
+                return new StudentPerformanceDto
+                {
+                    StudentId = u.Id,
+                    StudentName = $"{u.Name} {u.Surname}",
+                    AvatarUrl = u.AvatarUrl,
+                    TargetExam = u.TargetExam,
+                    TotalTrialExams = totalTrialExams,
+                    AverageNetScore = averageNetScore
+                };
             })
             .OrderByDescending(sp => sp.AverageNetScore)
-            .ToListAsync();
+            .ToList();
     }
 
     public async Task<TrialExamDto?> AddStudentTrialExamAsync(int teacherId, int studentId, CreateTrialExamRequest request)
@@ -275,6 +348,18 @@ public class TeacherPanelService : ITeacherPanelService
 
         // ITrialExamService üzerinden öğrencinin denemelerini getir
         return await _trialExamService.GetTrialExamsAsync(studentId, examType);
+    }
+
+    public async Task<TrialExamDto?> GetStudentTrialExamDetailAsync(int teacherId, int studentId, int trialId)
+    {
+        // Yetki kontrolü: Öğrenci öğretmenin bir sınıfında mı?
+        var student = await _db.Users.FindAsync(studentId);
+        if (student == null || student.ClassroomId == null) return null;
+
+        var hasAccess = await _db.TeacherClassrooms.AnyAsync(tc => tc.TeacherId == teacherId && tc.ClassroomId == student.ClassroomId);
+        if (!hasAccess) throw new UnauthorizedAccessException("Bu öğrencinin deneme detayını görme yetkiniz yok.");
+
+        return await _trialExamService.GetTrialExamByIdAsync(studentId, trialId);
     }
 
     #endregion
