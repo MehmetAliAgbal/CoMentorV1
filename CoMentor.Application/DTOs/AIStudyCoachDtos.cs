@@ -10,6 +10,12 @@ public class GenerateScheduleRequestDto
     // UI'dan gelen detaylı veriler
     public List<DailyAvailabilityDto> WeeklyAvailability { get; set; } = new();
     public List<SubjectPreferenceDto> SubjectPreferences { get; set; } = new();
+    
+    // ML tahmini için eklendi: Öğrencinin zayıf konuları
+    public List<string> WeakTopics { get; set; } = new();
+    
+    // ML tahmini için eklendi: TYT veya AYT Sayısal
+    public string ExamType { get; set; } = "TYT"; // "TYT" veya "SAYISAL"
 }
 
 public class DailyAvailabilityDto

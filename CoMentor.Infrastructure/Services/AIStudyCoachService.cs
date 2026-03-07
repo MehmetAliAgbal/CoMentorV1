@@ -17,11 +17,13 @@ public class AIStudyCoachService : IAIStudyCoachService
     private readonly AppDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ChatClient _chatClient;
+    private readonly IMlPredictionService _mlPredictionService;
 
-    public AIStudyCoachService(AppDbContext db, IConfiguration configuration)
+    public AIStudyCoachService(AppDbContext db, IConfiguration configuration, IMlPredictionService mlPredictionService)
     {
         _db = db;
         _configuration = configuration;
+        _mlPredictionService = mlPredictionService;
 
         var apiKey = _configuration["AIService:ApiKey"];
         var model = _configuration["AIService:Model"] ?? "gpt-4o";
@@ -50,13 +52,53 @@ public class AIStudyCoachService : IAIStudyCoachService
 
         var allSubjects = await _db.Subjects.Where(s => s.IsActive).ToListAsync();
 
+        string mlPredictionResult = "";
+        if (recentTrials.Any())
+        {
+            try
+            {
+                if (request.ExamType?.ToUpper() == "SAYISAL")
+                {
+                    var tahminReq = new SayisalTahminRequest();
+                    for (int i = 0; i < recentTrials.Count; i++)
+                    {
+                        var t = recentTrials[i];
+                        // Geçmişten günümüze doğru sıralamak için Count - i da yapılabilir, şimdilik index veriyoruz
+                        tahminReq.Denemeler.Add(i + 1, new SayisalDenemeDto
+                        {
+                            Matematik = t.SubjectScores.Where(s => s.Subject.Name.Contains("Matematik") || s.Subject.Name.Contains("Geometri")).Sum(s => s.NetScore),
+                            Fen = t.SubjectScores.Where(s => s.Subject.Name.Contains("Fizik") || s.Subject.Name.Contains("Kimya") || s.Subject.Name.Contains("Biyoloji") || s.Subject.Name.Contains("Fen")).Sum(s => s.NetScore)
+                        });
+                    }
+                    mlPredictionResult = await _mlPredictionService.GetSayisalTahminAsync(tahminReq);
+                }
+                else
+                {
+                    var tahminReq = new TytTahminRequest();
+                    for (int i = 0; i < recentTrials.Count; i++)
+                    {
+                        var t = recentTrials[i];
+                        tahminReq.Denemeler.Add(i + 1, new TytDenemeDto
+                        {
+                            Turkce = t.SubjectScores.FirstOrDefault(s => s.Subject.Name.Contains("Türkçe"))?.NetScore ?? 0,
+                            Matematik = t.SubjectScores.Where(s => s.Subject.Name.Contains("Matematik") || s.Subject.Name.Contains("Geometri")).Sum(s => s.NetScore),
+                            Fen = t.SubjectScores.Where(s => s.Subject.Name.Contains("Fen") || s.Subject.Name.Contains("Fizik") || s.Subject.Name.Contains("Kimya") || s.Subject.Name.Contains("Biyoloji")).Sum(s => s.NetScore),
+                            Sosyal = t.SubjectScores.Where(s => s.Subject.Name.Contains("Sosyal") || s.Subject.Name.Contains("Tarih") || s.Subject.Name.Contains("Coğrafya") || s.Subject.Name.Contains("Felsefe")).Sum(s => s.NetScore)
+                        });
+                    }
+                    mlPredictionResult = await _mlPredictionService.GetTytTahminAsync(tahminReq);
+                }
+            }
+            catch { /* ML servisi ayakta değilse failover, sessizce geç */ }
+        }
+
         // 2. Prompt hazırla
-        var prompt = BuildPrompt(user, recentTrials, allSubjects, request);
+        var prompt = BuildPrompt(user, recentTrials, allSubjects, request, mlPredictionResult);
 
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage("Sen uzman bir YKS (TYT/AYT) öğrenci koçusun. Öğrencinin deneme sonuçlarına göre ona haftalık ders çalışma programı hazırlamalısın. " +
-                                  "Programı JSON formatında döndür. Sadece JSON döndür, açıklama yapma."),
+                                  "Önce <planlama> etiketleri arasında adım adım mantığını kur, ardından sadece JSON formatında programı döndür."),
             new UserChatMessage(prompt)
         };
 
@@ -67,7 +109,19 @@ public class AIStudyCoachService : IAIStudyCoachService
             ChatCompletion completion = result.Value;
             
             var responseText = completion.Content[0].Text;
-            responseText = responseText.Replace("```json", "").Replace("```", "").Trim();
+            
+            // AI <planlama> yapacağı için metinden sadece JSON dizisini ( [ ... ] ) ayıklamalıyız
+            int startIndex = responseText.IndexOf('[');
+            int endIndex = responseText.LastIndexOf(']');
+
+            if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
+            {
+                responseText = responseText.Substring(startIndex, endIndex - startIndex + 1);
+            }
+            else
+            {
+                responseText = responseText.Replace("```json", "").Replace("```", "").Trim();
+            }
 
             // Geçici DTO (AI Response yapısı)
             var aiOptions = new List<AIResponseScheduleDto>();
@@ -147,7 +201,7 @@ public class AIStudyCoachService : IAIStudyCoachService
         }
     }
 
-    private string BuildPrompt(User user, List<TrialExam> trials, List<Subject> subjects, GenerateScheduleRequestDto request)
+    private string BuildPrompt(User user, List<TrialExam> trials, List<Subject> subjects, GenerateScheduleRequestDto request, string mlPredictionResult)
     {
         // 1. DERS FİLTRELEME
         if (request.SubjectPreferences != null && request.SubjectPreferences.Any())
@@ -160,121 +214,125 @@ public class AIStudyCoachService : IAIStudyCoachService
         // 2. MÜSAİTLİK ANALİZİ
         var availabilityInfo = "Öğrenci haftalık hedef saat: " + (request.TargetWeeklyHours ?? 20) + " saat.";
         var availableSlotsText = "";
-        int totalAvailableHours = 0;
+        int totalAvailableHours = request.TargetWeeklyHours ?? 20;
 
         if (request.WeeklyAvailability != null && request.WeeklyAvailability.Any())
         {
-            availableSlotsText = "\n\nÖğrencinin MÜSAİT OLDUĞU ZAMAN DİLİMLERİ:";
+            totalAvailableHours = 0; // Eğer detaylı takvim geldiyse üstüne yaz
+            availableSlotsText = "\n\nÖğrencinin MÜSAİT OLDUĞU SPESİFİK ZAMAN DİLİMLERİ (AŞAĞIDAKİ LİSTEDEKİ HER BİR SLOT İÇİN JSON'DA TAM OLARAK 1 ADET KAYIT OLUŞTURULMALIDIR!):";
             foreach (var day in request.WeeklyAvailability)
             {
                 var dayName = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)day.DayOfWeek);
-                availableSlotsText += $"\n- {dayName} (Day {day.DayOfWeek}): {string.Join(", ", day.TimeSlots)}";
+                availableSlotsText += $"\n- {dayName} (DayOfWeek: {day.DayOfWeek}): {string.Join(", ", day.TimeSlots)}";
                 
-                // Basitçe her slotu 1 saat sayıyoruz (daha hassas hesap için slot aralığına bakılabilir)
+                // Basitçe her slotu 1 saat sayıyoruz
                 totalAvailableHours += day.TimeSlots.Count;
             }
         }
 
-        // 3. KONU VE ZAMAN ANALİZİ (Metadata Kullanımı)
-        var topicsInfo = "Öğrencinin SEÇTİĞİ KONULAR ve TAHMİNİ SÜRELERİ:";
-        int totalRequiredHours = 0;
-        var strictModeInstruction = "";
-
+        // 3. KONU VE ZAMAN ANALİZİ (Dinamik Ağırlık Sistemi)
+        var topicsInfo = "Öğrencinin SEÇTİĞİ DİZİNLER (Genel Havuz):";
         if (request.SubjectPreferences != null && request.SubjectPreferences.Any())
         {
             foreach(var pref in request.SubjectPreferences)
             {
-                foreach(var topic in pref.SelectedTopics)
-                {
-                    // Metadata'dan süre ve zorluk al (yoksa varsayılan 2 saat)
-                    var meta = CoMentor.Domain.Constants.TopicMetadata.TopicDetails.ContainsKey(topic) 
-                        ? CoMentor.Domain.Constants.TopicMetadata.TopicDetails[topic] 
-                        : (Hours: 2, Difficulty: 3);
-                    
-                    totalRequiredHours += meta.Hours;
-                    topicsInfo += $"\n- {pref.SubjectName} / {topic}: {meta.Hours} saat (Zorluk: {meta.Difficulty}/5)";
-                }
+                if (pref.SelectedTopics.Any())
+                    topicsInfo += $"\n- {pref.SubjectName}: {string.Join(", ", pref.SelectedTopics)}";
             }
-            strictModeInstruction = "DİKKAT: Sadece seçilen bu konuları kullan. Başka ders ekleme.";
-        }
-        else 
-        {
-             topicsInfo += " (Genel tekrar ve eksik kapatma)";
         }
 
-        // 4. KAPASİTE KONTROLÜ MESAJI
-        var capacityWarning = "";
-        if (totalRequiredHours > totalAvailableHours && totalAvailableHours > 0)
+        var weakTopicsText = "";
+        if (request.WeakTopics != null && request.WeakTopics.Any())
         {
-            capacityWarning = $"\nUYARI: Öğrenci {totalRequiredHours} saatlik konu seçti ama sadece {totalAvailableHours} saat müsaitliği var! " +
-                              $"Bu durumda EN ÖNEMLİ konuları programa yerleştir, sığmayanları dışarıda bırak ve not olarak belirt.";
+            weakTopicsText = $"\n\nÖğrencinin DİKKAT ÇEKTİĞİ / ZORLANDIĞI KONULAR (ÇOK YÜKSEK ÖNCELİK VER): \n- {string.Join("\n- ", request.WeakTopics)}";
+        }
+
+        var mlInsights = "";
+        if (!string.IsNullOrEmpty(mlPredictionResult))
+        {
+            mlInsights = $"\n\nMAKİNE ÖĞRENMESİ (ML) ANALİZİ VE TAHMİNLERİ:\n{mlPredictionResult}\nBu JSON verisindeki tahminlere bakarak (eğer varsa), öğrencinin hangi derste potansiyel olarak düştüğünü veya gelişime açık olduğunu tespit et ve o derse daha fazla saat ayır.";
         }
 
         // 5. DENEME SONUÇLARI
         var trialSummary = "Henüz deneme sınavı girilmemiş.";
+        var strategyHint = "Genel ve Dengeli Çalışma";
+        
         if (trials.Any())
         {
             trialSummary = string.Join("\n", trials.Select(t => 
-                $"- {t.ExamDate.ToShortDateString()} ({t.ExamType}): Toplam {t.TotalScore} puan. " +
-                $"Detaylar: {string.Join(", ", t.SubjectScores.Select(s => $"{s.Subject?.Name}: {s.CorrectAnswers}D/{s.WrongAnswers}Y"))}"
+                $"- {t.ExamDate.ToShortDateString()} ({t.ExamType}): Toplam {t.TotalScore} net. " +
+                $"Detaylar: {string.Join(", ", t.SubjectScores.Select(s => $"{s.Subject?.Name}: {s.NetScore} Net"))}"
             ));
+            
+            var lastTrialScore = trials.First().TotalScore;
+            // TYT için ortalama 120, AYT sayısal için 80 soru.
+            // Örnek basit bir strateji (Daha detaylısı ML veya net oranlarıyla yapılabilir)
+            if (request.ExamType == "TYT") {
+                if (lastTrialScore < 45) strategyHint = "Konu Odaklı (%70 Konu, %30 Soru)";
+                else if (lastTrialScore < 80) strategyHint = "Dengeli Çalışma (%40 Konu, %60 Soru)";
+                else strategyHint = "Pratik Odaklı (%90 Soru Çözümü ve Branş Denemesi)";
+            } else {
+                 if (lastTrialScore < 25) strategyHint = "Konu Odaklı (%70 Konu, %30 Soru)";
+                else if (lastTrialScore < 50) strategyHint = "Dengeli Çalışma (%40 Konu, %60 Soru)";
+                else strategyHint = "Pratik Odaklı (%90 Soru Çözümü ve Branş Denemesi)";
+            }
         }
 
         // 6. ÖN KOŞUL VE MANTIK KONTROLLERİ
         var logicRules = @"
-        - MATEMATİK SIRALAMASI: Temel Kavramlar -> Fonksiyonlar -> Limit -> Türev -> İntegral. ASLA bu sırayı bozma. (Önce Limit bitmeli, sonra Türev başlamalı).
-        - GEOMETRİ SIRALAMASI: Üçgenler -> Çokgenler -> Analitik Geometri.
-        - FİZİK SIRALAMASI: Hareket -> Dinamik -> Enerji.
-        - ZORLUK YÖNETİMİ: Zorluk seviyesi 4 ve 5 olan dersleri (Türev, İntegral, Fizik) ASLA akşam saatlerine (18:00 sonrası) koyma (Eğer sabah boşluk varsa).
+        - KRİTİK SIRALAMA YASASI (TÜM DERSLER İÇİN): Sana verdiğim 'Öğrencinin SEÇTİĞİ DİZİNLER' listesindeki konular, kendi içlerinde KRONOLOJİK bir sıradadır. ZAYIF KONU KRONOLOJİYİ BOZAMAZ: Bir konu 'Zayıf konu' olsa bile, sıralamadakilerden ÖNCE İŞLENEMEZ! Kronolojik sıralamayı ASLA bozma!
+        - TİP KRONOLOJİSİ (ÖNCE KONU, SONRA SORU): Aynı konunun çalışma tipleri de kendi içinde sıralıdır. Bir konunun ÖNCE 'Konu Anlatımı' atanmalı, SONRA (daha geç bir saate/güne) 'Soru Çözümü' veya 'Deneme' atanmalıdır. Konu anlatımını görmeden soru çözümü veya deneme atamak KESİNLİKLE YASAKTIR.
+        - YIĞILMA ÖNLEYİCİ: Aynı dersin ardışık DOĞASI FARKLI konularını (Örn: Matematikte Limit ve İntegral) AYNI GÜNE (aynı slotların içine) sıkıştırma. Gerekirse araya Fizik/Türkçe koy veya farklı günlere yay.
+        - ZORLUK YÖNETİMİ: Zor dersleri akşam saatlerine (18:00 sonrası) koyma (Eğer sabah boşluk varsa).
         ";
 
         return $@"
-        SEN UZMAN BİR YKS KOÇUSUN. Aşağıdaki kısıtlara göre gerçekçi bir program hazırla.
+        SEN UZMAN BİR YKS KOÇUSUN. Aşağıdaki kısıtlara göre gerçekçi ve kişiselleştirilmiş bir program hazırla.
 
         DURUM ANALİZİ:
-        - Müsait Süre: {totalAvailableHours} saat
-        - Gereken Süre: {totalRequiredHours} saat
-        {capacityWarning}
-
+        - Müsait Süre: TOPLAM {totalAvailableHours} adet slot (1 slot = ~50dk ders) var. Döneceğin JSON dizisi TAM OLARAK {totalAvailableHours} ELEMANLI OLMAK ZORUNDA!
         {availabilityInfo}
         {availableSlotsText}
         
         {topicsInfo}
-        
+        {weakTopicsText}
+        {mlInsights}
+
+        SON DENEME PERFORMANSI VE AI STRATEJİSİ:
+        {trialSummary}
+        UYGULANACAK ÇALIŞMA MODU: {strategyHint} (Bunu programı kurgularken göz önünde bulundur. Mesela pratik odaklıysa konudan ziyade soru çözümü veya deneme atamaları yap.)
+
         MEVCUT DERSLER: {subjectList}
 
-        SON DENEME PERFORMANSI:
-        {trialSummary}
-
         GÖREV VE KURALLAR:
-        1. **Sadece Müsait Saatleri Kullan**: Belirtilen gün ve saatler dışına asla çıkma.
+        1. **Eksiksiz Program**: MÜSAİT OLAN TÜM SAATLERİ DOLDUR. Dizide tam {totalAvailableHours} kayıt bulunmalı. Hiçbir saati atlama, gerekirse 'Branş Denemesi' veya 'Genel Tekrar' yazarak doldur.
         
-        2. **Pomodoro Tekniği**: Uzun blokları (örn: 2 saat) tek parça yazma. Mümkünse '50 dk Ders + 10 dk Mola' mantığını gözet. 
-           (Ancak çıktı JSON'da sadece ders saatini yaz, mola detayını karıştırma).
+        2. **Zaman Uyumu**: 'DayOfWeek' ve 'StartTime' alanlarını yukarıda sana verdiğim spesifik slotlarla birebir eşleştir. Bitiş saatini (EndTime) StartTime'dan 50 dakika sonrası olarak hesapla (örn: StartTime: 19:00 ise EndTime: 19:50).
         
-        3. **İLERLEME MANTIĞI VE SIRALAMA (ÇOK ÖNEMLİ)**: 
+        3. **İLERLEME VE AĞIRLIK MANTIĞI**: 
+           Zayıf konulara (weak topics) çok daha fazla saat ağırlığı (weight) ver.
            {logicRules}
-           - Eğer listede hem Limit hem Türev varsa, haftanın erken günlerine/saatlerine ÖNCE Limit'i koy.
-           - Limit bitmeden Türev'e geçme.
 
-        4. **Zorluk Dengesi**: 
-           - Zor dersleri (Zorluk 4-5) **Salı 09:00** gibi zihnin açık olduğu saatlere koy.
-           - Akşam saatlerine (18:00 sonrası) Paragraf, Sosyal veya daha hafif/tekrar konularını koy.
-        
-        5. **Süre Yönetimi**: 
-           - Eğer [Gereken Süre > Müsait Süre] ise: En yüksek zorluk veya temel eksiklik olan konulara öncelik ver. Sığmayanları es geç.
+        4. **ADIM ADIM DÜŞÜNME (CHAIN OF THOUGHT)**:
+           Hemen JSON yazmaya başlama! Önce `<planlama> ... </planlama>` etiketleri arasında hangi derse kaç saat vereceğini, limit vs türev konularını hangi sırayla hangi günlere yerleştireceğini adım adım mantıksal bir şekilde planla.
+           Planlaman bittikten sonra EN SON adımda, plandaki dağılıma tam uyumlu JSON çıktısını ````json ... ```` bloğu içinde ekle.
 
-        YANIT FORMATI (JSON Listesi):
+        YANIT FORMATI:
+        <planlama>
+        (Düşünce süreçlerin...)
+        </planlama>
+        ```json
         [
           {{
             ""SubjectName"": ""Matematik"",
             ""DayOfWeek"": 1,
             ""DayName"": ""Pazartesi"",
-            ""StartTime"": ""09:00"", 
-            ""EndTime"": ""09:50"", // Pomodoro
+            ""StartTime"": ""19:00"", 
+            ""EndTime"": ""19:50"",
             ""Topic"": ""Limit (Konu Anlatımı)"" 
           }}
         ]
+        ```
         ";
     }
 
