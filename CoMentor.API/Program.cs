@@ -41,6 +41,12 @@ builder.Services.AddScoped<IStudyStreakService, StudyStreakService>();
 builder.Services.AddScoped<ITeacherAuthService, TeacherAuthService>();
 builder.Services.AddScoped<ITeacherPanelService, TeacherPanelService>();
 
+// register AI study coach service
+builder.Services.AddScoped<IAIStudyCoachService, AIStudyCoachService>();
+
+// register ML API Python microservice
+builder.Services.AddHttpClient<IMlPredictionService, MlPredictionService>();
+
 // ==========================================
 // 4) Background Services (Cron vb.)
 // CORS - allow frontend dev origins (adjust as needed)
