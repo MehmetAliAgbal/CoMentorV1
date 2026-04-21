@@ -18,12 +18,14 @@ public class AIStudyCoachService : IAIStudyCoachService
     private readonly IConfiguration _configuration;
     private readonly ChatClient _chatClient;
     private readonly IMlPredictionService _mlPredictionService;
+    private readonly IYouTubeService _youtubeService;
 
-    public AIStudyCoachService(AppDbContext db, IConfiguration configuration, IMlPredictionService mlPredictionService)
+    public AIStudyCoachService(AppDbContext db, IConfiguration configuration, IMlPredictionService mlPredictionService, IYouTubeService youtubeService)
     {
         _db = db;
         _configuration = configuration;
         _mlPredictionService = mlPredictionService;
+        _youtubeService = youtubeService;
 
         var apiKey = _configuration["AIService:ApiKey"];
         var model = _configuration["AIService:Model"] ?? "gpt-4o";
@@ -141,6 +143,8 @@ public class AIStudyCoachService : IAIStudyCoachService
             // 3. Veritabanına kaydet ve DTO'ya dönüştür
             var scheduleDtos = new List<StudyScheduleDto>();
             var newEntities = new List<StudySchedule>();
+            var newVideoRecommendations = new List<VideoRecommendation>();
+            var fetchedQueries = new HashSet<string>();
             
             // Eski aktif programları pasife çekelim (opsiyonel, şimdilik yapmıyoruz)
 
@@ -165,6 +169,28 @@ public class AIStudyCoachService : IAIStudyCoachService
                 };
                 newEntities.Add(entity);
 
+                // WeakTopic Video Suggestion Resolution
+                if (!string.IsNullOrWhiteSpace(s.VideoSuggestionKeyword) && fetchedQueries.Count < 3) 
+                {
+                    if (fetchedQueries.Add(s.VideoSuggestionKeyword))
+                    {
+                        var topVideo = await _youtubeService.GetTopVideoAsync(s.VideoSuggestionKeyword);
+                        if (topVideo != null)
+                        {
+                            newVideoRecommendations.Add(new VideoRecommendation
+                            {
+                                UserId = userId,
+                                SubjectId = subject.Id,
+                                Title = topVideo.Value.Title,
+                                Url = topVideo.Value.Url,
+                                Priority = 1,
+                                RecommendedAt = DateTime.UtcNow,
+                                IsWatched = false
+                            });
+                        }
+                    }
+                }
+
                 // DTO oluştur (Response için)
                 scheduleDtos.Add(new StudyScheduleDto
                 {
@@ -184,6 +210,10 @@ public class AIStudyCoachService : IAIStudyCoachService
             }
 
             _db.StudySchedules.AddRange(newEntities);
+            if (newVideoRecommendations.Any())
+            {
+                _db.VideoRecommendations.AddRange(newVideoRecommendations);
+            }
             await _db.SaveChangesAsync();
 
             // ID'leri DTO'lara geri yükle (sıralı eklendiği varsayımıyla veya tekrar query ile)
@@ -311,6 +341,7 @@ public class AIStudyCoachService : IAIStudyCoachService
         
         3. **İLERLEME VE AĞIRLIK MANTIĞI**: 
            Zayıf konulara (weak topics) çok daha fazla saat ağırlığı (weight) ver.
+           - EKSTRA GÖREV: Eğer atadığın konu öğrencinin 'Zayıf Konular (WeakTopics)' listesinde ise, bu konuyu en iyi açıklayan Türkçe bir YouTube arama kelimesi bul (örn: 'Rehber Matematik Limit') ve JSON içindeki 'VideoSuggestionKeyword' alanına yaz. Eğer bu konu zayıf konulardan biri DEĞİLSE, kesinlikle boş ('') bırak.
            {logicRules}
 
         4. **ADIM ADIM DÜŞÜNME (CHAIN OF THOUGHT)**:
@@ -329,7 +360,8 @@ public class AIStudyCoachService : IAIStudyCoachService
             ""DayName"": ""Pazartesi"",
             ""StartTime"": ""19:00"", 
             ""EndTime"": ""19:50"",
-            ""Topic"": ""Limit (Konu Anlatımı)"" 
+            ""Topic"": ""Limit (Konu Anlatımı)"",
+            ""VideoSuggestionKeyword"": ""Rehber Matematik Limit""
           }}
         ]
         ```
@@ -345,5 +377,6 @@ public class AIStudyCoachService : IAIStudyCoachService
         public string StartTime { get; set; } = "";
         public string EndTime { get; set; } = "";
         public string? Topic { get; set; }
+        public string? VideoSuggestionKeyword { get; set; }
     }
 }

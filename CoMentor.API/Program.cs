@@ -47,6 +47,9 @@ builder.Services.AddScoped<IAIStudyCoachService, AIStudyCoachService>();
 // register ML API Python microservice
 builder.Services.AddHttpClient<IMlPredictionService, MlPredictionService>();
 
+// register YouTube API Data Service
+builder.Services.AddHttpClient<IYouTubeService, YouTubeService>();
+
 // ==========================================
 // 4) Background Services (Cron vb.)
 // CORS - allow frontend dev origins (adjust as needed)
