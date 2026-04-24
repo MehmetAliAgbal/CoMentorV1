@@ -17,10 +17,12 @@ public interface ITeacherPanelService
     // Homeworks
     Task<List<HomeworkDto>> GetTeacherHomeworksAsync(int teacherId);
     Task<HomeworkDto> CreateHomeworkAsync(int teacherId, CreateHomeworkRequest request);
+    Task<List<HomeworkStudentStatusDto>> GetHomeworkStatusListAsync(int teacherId, int homeworkId);
     
     // Student Dashboard endpoints
     Task<List<AnnouncementDto>> GetStudentAnnouncementsAsync(int studentId);
     Task<List<HomeworkDto>> GetStudentHomeworksAsync(int studentId);
+    Task<bool> MarkHomeworkAsCompletedAsync(int studentId, int homeworkId);
     
     // Student Monitoring (Trial Exams)
     Task<List<StudentPerformanceDto>> GetClassroomStudentPerformancesAsync(int teacherId, int classroomId);

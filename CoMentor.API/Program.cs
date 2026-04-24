@@ -40,6 +40,8 @@ builder.Services.AddScoped<IStudyStreakService, StudyStreakService>();
 // builder.Services.AddScoped<IAIStudyCoachService, DeepSeekAIStudyCoachService>();
 builder.Services.AddScoped<ITeacherAuthService, TeacherAuthService>();
 builder.Services.AddScoped<ITeacherPanelService, TeacherPanelService>();
+builder.Services.AddScoped<IParentPanelService, ParentPanelService>();
+builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 
 // register AI study coach service
 builder.Services.AddScoped<IAIStudyCoachService, AIStudyCoachService>();

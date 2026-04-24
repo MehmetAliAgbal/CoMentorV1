@@ -1,4 +1,4 @@
-﻿namespace CoMentor.Domain.Entities
+namespace CoMentor.Domain.Entities
 {
     public class User
     {
@@ -13,6 +13,7 @@
         public string? TargetExam { get; set; } // 'TYT', 'AYT', 'BOTH'
         public int? ClassroomId { get; set; }
         public Classroom? Classroom { get; set; }
+        public Parent? Parent { get; set; }
         public int CurrentStreak { get; set; } = 0;
         public int TotalXp { get; set; } = 0;
         public int DailyGoalMinutes { get; set; } = 120;

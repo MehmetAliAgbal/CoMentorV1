@@ -15,5 +15,11 @@ namespace CoMentor.Domain.Entities
 
         public int? UserId { get; set; } // Öğrenci
         public User? User { get; set; }
+
+        public int? ParentId { get; set; } // Veli (Bireysel)
+        public Parent? Parent { get; set; }
+
+        // "Students", "Parents", "Both" (Toplu mesajlar veya genel gosterim için kitle)
+        public string TargetAudience { get; set; } = "Students";
     }
 }

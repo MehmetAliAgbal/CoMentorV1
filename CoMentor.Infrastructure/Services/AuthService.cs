@@ -53,21 +53,46 @@ public class AuthService : IAuthService
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        var (token, expires) = GenerateToken(user);
-        return new AuthResponse { UserId = user.Id, Token = token, ExpiresAt = expires, User = user.ToDto() };
+        if (!string.IsNullOrWhiteSpace(request.ParentEmail) && !string.IsNullOrWhiteSpace(request.ParentPassword))
+        {
+            var parent = new Parent
+            {
+                Email = request.ParentEmail,
+                PasswordHash = PasswordHasher.Hash(request.ParentPassword),
+                Name = request.ParentName ?? "Veli",
+                Surname = request.ParentSurname ?? user.Surname,
+                StudentId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _db.Parents.Add(parent);
+            await _db.SaveChangesAsync();
+        }
+
+        var (token, expires) = GenerateToken(user.Id, user.Email, user.Name, "Student");
+        return new AuthResponse { UserId = user.Id, Token = token, ExpiresAt = expires, Role = "Student", User = user.ToDto() };
     }
 
     public async Task<AuthResponse?> LoginAsync(LoginRequest request)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
-        if (user == null) return null;
-        if (!PasswordHasher.Verify(request.Password, user.PasswordHash)) return null;
+        if (user != null && PasswordHasher.Verify(request.Password, user.PasswordHash)) 
+        {
+            var (token, expires) = GenerateToken(user.Id, user.Email, user.Name, "Student");
+            return new AuthResponse { UserId = user.Id, Token = token, ExpiresAt = expires, Role = "Student", User = user.ToDto() };
+        }
 
-        var (token, expires) = GenerateToken(user);
-        return new AuthResponse { UserId = user.Id, Token = token, ExpiresAt = expires, User = user.ToDto() };
+        var parent = await _db.Parents.FirstOrDefaultAsync(p => p.Email == request.Email);
+        if (parent != null && PasswordHasher.Verify(request.Password, parent.PasswordHash))
+        {
+            var (token, expires) = GenerateToken(parent.Id, parent.Email, parent.Name, "Parent");
+            return new AuthResponse { UserId = parent.Id, Token = token, ExpiresAt = expires, Role = "Parent" };
+        }
+
+        return null;
     }
 
-    private (string token, DateTime expiresAt) GenerateToken(User user)
+    private (string token, DateTime expiresAt) GenerateToken(int userId, string email, string name, string role)
     {
         var jwt = _cfg.GetSection("Jwt");
         var key = jwt.GetValue<string>("Key") ?? throw new InvalidOperationException("Jwt:Key not configured");
@@ -77,9 +102,10 @@ public class AuthService : IAuthService
 
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim("name", user.Name)
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, email),
+            new Claim("name", name),
+            new Claim(ClaimTypes.Role, role)
         };
 
         var sym = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));

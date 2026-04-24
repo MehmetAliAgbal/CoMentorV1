@@ -134,7 +134,9 @@ public class TeacherPanelService : ITeacherPanelService
             Message = request.Message,
             CreatedAt = DateTime.UtcNow,
             ClassroomId = request.ClassroomId,
-            UserId = request.UserId
+            UserId = request.UserId,
+            ParentId = request.ParentId,
+            TargetAudience = request.TargetAudience ?? "Students"
         };
 
         _db.Announcements.Add(announcement);
@@ -142,6 +144,7 @@ public class TeacherPanelService : ITeacherPanelService
 
         var classroom = request.ClassroomId.HasValue ? await _db.Classrooms.FindAsync(request.ClassroomId.Value) : null;
         var user = request.UserId.HasValue ? await _db.Users.FindAsync(request.UserId.Value) : null;
+        var parent = request.ParentId.HasValue ? await _db.Parents.FindAsync(request.ParentId.Value) : null;
 
         return new AnnouncementDto
         {
@@ -154,7 +157,10 @@ public class TeacherPanelService : ITeacherPanelService
             ClassroomId = announcement.ClassroomId,
             ClassroomName = classroom?.Name,
             UserId = announcement.UserId,
-            UserName = user != null ? $"{user.Name} {user.Surname}" : null
+            UserName = user != null ? $"{user.Name} {user.Surname}" : null,
+            ParentId = announcement.ParentId,
+            ParentName = parent != null ? $"{parent.Name} {parent.Surname}" : null,
+            TargetAudience = announcement.TargetAudience
         };
     }
 
@@ -269,10 +275,85 @@ public class TeacherPanelService : ITeacherPanelService
                 ClassroomId = h.ClassroomId,
                 ClassroomName = h.Classroom != null ? h.Classroom.Name : null,
                 UserId = h.UserId,
-                UserName = h.User != null ? $"{h.User.Name} {h.User.Surname}" : null
+                UserName = h.User != null ? $"{h.User.Name} {h.User.Surname}" : null,
+                IsCompleted = _db.HomeworkSubmissions.Any(hs => hs.HomeworkId == h.Id && hs.StudentId == studentId && hs.IsCompleted)
             })
             .OrderByDescending(h => h.DueDate)
             .ToListAsync();
+    }
+
+    public async Task<bool> MarkHomeworkAsCompletedAsync(int studentId, int homeworkId)
+    {
+        var homework = await _db.Homeworks.FindAsync(homeworkId);
+        if (homework == null) return false;
+
+        var submission = await _db.HomeworkSubmissions
+            .FirstOrDefaultAsync(hs => hs.HomeworkId == homeworkId && hs.StudentId == studentId);
+
+        if (submission == null)
+        {
+            submission = new HomeworkSubmission
+            {
+                HomeworkId = homeworkId,
+                StudentId = studentId,
+                IsCompleted = true,
+                CompletedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _db.HomeworkSubmissions.Add(submission);
+        }
+        else
+        {
+            submission.IsCompleted = true;
+            submission.CompletedAt = DateTime.UtcNow;
+            submission.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<List<HomeworkStudentStatusDto>> GetHomeworkStatusListAsync(int teacherId, int homeworkId)
+    {
+        var homework = await _db.Homeworks.FindAsync(homeworkId);
+        if (homework == null || homework.TeacherId != teacherId)
+            return new List<HomeworkStudentStatusDto>();
+
+        List<User> studentsToTrack = new List<User>();
+
+        if (homework.ClassroomId.HasValue)
+        {
+            studentsToTrack = await _db.Users
+                .Where(u => u.ClassroomId == homework.ClassroomId.Value)
+                .ToListAsync();
+        }
+        else if (homework.UserId.HasValue)
+        {
+            var user = await _db.Users.FindAsync(homework.UserId.Value);
+            if (user != null) studentsToTrack.Add(user);
+        }
+
+        var submissions = await _db.HomeworkSubmissions
+            .Where(hs => hs.HomeworkId == homeworkId)
+            .ToListAsync();
+
+        var result = new List<HomeworkStudentStatusDto>();
+
+        foreach (var student in studentsToTrack)
+        {
+            var sub = submissions.FirstOrDefault(s => s.StudentId == student.Id);
+            result.Add(new HomeworkStudentStatusDto
+            {
+                StudentId = student.Id,
+                StudentName = $"{student.Name} {student.Surname}",
+                AvatarUrl = student.AvatarUrl,
+                IsCompleted = sub?.IsCompleted ?? false,
+                CompletedAt = sub?.CompletedAt
+            });
+        }
+
+        return result.OrderBy(r => r.StudentName).ToList();
     }
 
     #endregion

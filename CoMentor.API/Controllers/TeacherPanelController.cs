@@ -12,10 +12,12 @@ namespace CoMentor.API.Controllers;
 public class TeacherPanelController : ControllerBase
 {
     private readonly ITeacherPanelService _teacherPanelService;
+    private readonly IAppointmentService _appointmentService;
 
-    public TeacherPanelController(ITeacherPanelService teacherPanelService)
+    public TeacherPanelController(ITeacherPanelService teacherPanelService, IAppointmentService appointmentService)
     {
         _teacherPanelService = teacherPanelService;
+        _appointmentService = appointmentService;
     }
 
     private int GetTeacherId()
@@ -118,6 +120,14 @@ public class TeacherPanelController : ControllerBase
         return Created("", result);
     }
 
+    [HttpGet("homeworks/{id}/status")]
+    public async Task<IActionResult> GetHomeworkStatus(int id)
+    {
+        var teacherId = GetTeacherId();
+        var statusList = await _teacherPanelService.GetHomeworkStatusListAsync(teacherId, id);
+        return Ok(statusList);
+    }
+
     #endregion
 
     #region Student Monitoring
@@ -183,6 +193,34 @@ public class TeacherPanelController : ControllerBase
         catch (UnauthorizedAccessException)
         {
             return BadRequest(new { Message = "Bu öğrencinin deneme detayını görme yetkiniz yok." });
+        }
+    }
+
+    #endregion
+
+    #region Appointments
+
+    [HttpGet("appointments")]
+    public async Task<IActionResult> GetAppointments()
+    {
+        var teacherId = GetTeacherId();
+        var appointments = await _appointmentService.GetTeacherAppointmentsAsync(teacherId);
+        return Ok(appointments);
+    }
+
+    [HttpPut("appointments/{id}/schedule")]
+    public async Task<IActionResult> ScheduleAppointment(int id, [FromBody] ScheduleAppointmentDto request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var teacherId = GetTeacherId();
+        try
+        {
+            var result = await _appointmentService.ScheduleAppointmentAsync(teacherId, id, request);
+            return Ok(result);
+        }
+        catch (System.Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
     }
 

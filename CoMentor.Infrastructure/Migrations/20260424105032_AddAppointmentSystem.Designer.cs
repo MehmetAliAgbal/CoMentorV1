@@ -3,6 +3,7 @@ using System;
 using CoMentor.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CoMentor.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260424105032_AddAppointmentSystem")]
+    partial class AddAppointmentSystem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -304,47 +307,6 @@ namespace CoMentor.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Homeworks");
-                });
-
-            modelBuilder.Entity("CoMentor.Domain.Entities.HomeworkSubmission", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("HomeworkId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsCompleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("StudentId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("StudentNotes")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TeacherFeedback")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("HomeworkId");
-
-                    b.HasIndex("StudentId");
-
-                    b.ToTable("HomeworkSubmissions");
                 });
 
             modelBuilder.Entity("CoMentor.Domain.Entities.League", b =>
@@ -1059,25 +1021,6 @@ namespace CoMentor.Infrastructure.Migrations
                     b.Navigation("Teacher");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CoMentor.Domain.Entities.HomeworkSubmission", b =>
-                {
-                    b.HasOne("CoMentor.Domain.Entities.Homework", "Homework")
-                        .WithMany()
-                        .HasForeignKey("HomeworkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CoMentor.Domain.Entities.User", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Homework");
-
-                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("CoMentor.Domain.Entities.Parent", b =>

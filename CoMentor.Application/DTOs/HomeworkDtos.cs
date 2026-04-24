@@ -19,6 +19,18 @@ public class HomeworkDto
     
     public int? UserId { get; set; }
     public string? UserName { get; set; }
+    
+    // Öğrenci paneli için ödev durumu
+    public bool IsCompleted { get; set; }
+}
+
+public class HomeworkStudentStatusDto
+{
+    public int StudentId { get; set; }
+    public string StudentName { get; set; } = null!;
+    public string? AvatarUrl { get; set; }
+    public bool IsCompleted { get; set; }
+    public DateTime? CompletedAt { get; set; }
 }
 
 public class CreateHomeworkRequest

@@ -16,6 +16,10 @@ public class AnnouncementDto
     
     public int? UserId { get; set; }
     public string? UserName { get; set; }
+    
+    public int? ParentId { get; set; }
+    public string? ParentName { get; set; }
+    public string TargetAudience { get; set; } = "Students";
 }
 
 public class CreateAnnouncementRequest
@@ -26,7 +30,8 @@ public class CreateAnnouncementRequest
     [Required]
     public string Message { get; set; } = null!;
     
-    // Either ClassroomId or UserId should be provided
     public int? ClassroomId { get; set; }
     public int? UserId { get; set; }
+    public int? ParentId { get; set; }
+    public string TargetAudience { get; set; } = "Students";
 }

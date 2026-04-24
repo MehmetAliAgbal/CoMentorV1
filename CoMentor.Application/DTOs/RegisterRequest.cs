@@ -11,5 +11,10 @@ namespace CoMentor.Application.DTOs
         public int? GradeLevel { get; set; }
         public string? TargetExam { get; set; } // 'TYT', 'AYT', 'BOTH'
         public int? DailyGoalMinutes { get; set; }
+
+        public string? ParentEmail { get; set; }
+        public string? ParentPassword { get; set; }
+        public string? ParentName { get; set; }
+        public string? ParentSurname { get; set; }
     }
 }

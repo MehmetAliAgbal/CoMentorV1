@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using CoMentor.Domain.Entities;
 using CoMentor.Application.DTOs; // UserStatsDto için
 
@@ -32,6 +32,9 @@ namespace CoMentor.Infrastructure.Persistence
         public DbSet<TeacherClassroom> TeacherClassrooms { get; set; }
         public DbSet<Announcement> Announcements { get; set; }
         public DbSet<Homework> Homeworks { get; set; }
+        public DbSet<HomeworkSubmission> HomeworkSubmissions { get; set; }
+        public DbSet<Parent> Parents { get; set; }
+        public DbSet<Appointment> Appointments { get; set; }
 
         // SQL VIEW (readonly)
         public DbSet<UserStatsDto> UserStats { get; set; }
@@ -64,6 +67,26 @@ namespace CoMentor.Infrastructure.Persistence
                 .HasForeignKey(u => u.ClassroomId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // Appointment Entity configurations
+            modelBuilder.Entity<Appointment>()
+                .HasOne(a => a.Teacher)
+                .WithMany()
+                .HasForeignKey(a => a.TeacherId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Appointment>()
+                .HasOne(a => a.Student)
+                .WithMany()
+                .HasForeignKey(a => a.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // User - Parent One-to-One
+            modelBuilder.Entity<Parent>()
+                .HasOne(p => p.Student)
+                .WithOne(u => u.Parent)
+                .HasForeignKey<Parent>(p => p.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Announcement Target Configuration
             modelBuilder.Entity<Announcement>()
                 .HasOne(a => a.Teacher)
@@ -83,6 +106,12 @@ namespace CoMentor.Infrastructure.Persistence
                 .HasForeignKey(a => a.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.Parent)
+                .WithMany() 
+                .HasForeignKey(a => a.ParentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Homework Target Configuration
             modelBuilder.Entity<Homework>()
                 .HasOne(h => h.Teacher)
@@ -100,6 +129,18 @@ namespace CoMentor.Infrastructure.Persistence
                 .HasOne(h => h.User)
                 .WithMany() // No nav property on User intentionally
                 .HasForeignKey(h => h.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<HomeworkSubmission>()
+                .HasOne(hs => hs.Homework)
+                .WithMany()
+                .HasForeignKey(hs => hs.HomeworkId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<HomeworkSubmission>()
+                .HasOne(hs => hs.Student)
+                .WithMany()
+                .HasForeignKey(hs => hs.StudentId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // League Seed Data - XP Seviye Sistemi
