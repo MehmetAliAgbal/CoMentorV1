@@ -33,7 +33,7 @@ builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 
 // register achievement service
-builder.Services.AddScoped<ILeagueService, LeagueService>();
+builder.Services.AddScoped<IAchievementService, AchievementService>();
 // builder.Services.AddScoped<IDailyGoalService, DailyGoalService>();
 builder.Services.AddScoped<IStudyStreakService, StudyStreakService>();
 // builder.Services.AddScoped<IVideoRecommendationService, VideoRecommendationService>();
