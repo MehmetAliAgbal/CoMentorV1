@@ -82,6 +82,37 @@ public class AuthService : IAuthService
             return new AuthResponse { UserId = user.Id, Token = token, ExpiresAt = expires, Role = "Student", User = user.ToDto() };
         }
 
+        return null;
+    }
+
+    public async Task<AuthResponse?> ParentRegisterAsync(ParentRegisterRequest request)
+    {
+        if (await _db.Parents.AnyAsync(p => p.Email == request.Email))
+            return null;
+
+        var student = await _db.Users.FindAsync(request.StudentId);
+        if (student == null)
+            return null;
+
+        var parent = new Parent
+        {
+            Email = request.Email,
+            PasswordHash = PasswordHasher.Hash(request.Password),
+            Name = request.Name,
+            Surname = request.Surname,
+            StudentId = request.StudentId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Parents.Add(parent);
+        await _db.SaveChangesAsync();
+
+        var (token, expires) = GenerateToken(parent.Id, parent.Email, parent.Name, "Parent");
+        return new AuthResponse { UserId = parent.Id, Token = token, ExpiresAt = expires, Role = "Parent" };
+    }
+
+    public async Task<AuthResponse?> ParentLoginAsync(LoginRequest request)
+    {
         var parent = await _db.Parents.FirstOrDefaultAsync(p => p.Email == request.Email);
         if (parent != null && PasswordHasher.Verify(request.Password, parent.PasswordHash))
         {
