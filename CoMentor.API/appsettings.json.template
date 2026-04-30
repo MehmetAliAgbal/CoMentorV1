@@ -1,19 +1,19 @@
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=ep-green-morning-ad3hh1ah-pooler.c-2.us-east-1.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=npg_OJT6dXjqAb1C;SSL Mode=Require;Trust Server Certificate=true"
+    "DefaultConnection": "Host=YOUR_HOST;Port=5432;Database=YOUR_DB;Username=YOUR_USER;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
   },
   "Jwt": {
-    "Key": "3q2+7w9m9h8sK1d4VxYz7Pq0rTnB5uL8GfHjKlMnOpQ=",
+    "Key": "YOUR_JWT_SECRET_KEY_HERE (min 32 chars, base64 encoded)",
     "Issuer": "CoMentorApi",
     "Audience": "CoMentorClients",
     "ExpiresMinutes": 60
   },
   "AIService": {
-    "ApiKey": "",
+    "ApiKey": "YOUR_OPENAI_API_KEY_HERE",
     "Model": "gpt-4o-mini"
   },
   "YouTube": {
-    "ApiKey": ""
+    "ApiKey": "YOUR_YOUTUBE_API_KEY_HERE"
   },
   "Logging": {
     "LogLevel": {

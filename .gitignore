@@ -363,4 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Local appsettings for API (should not be committed)
+/CoMentor.API/appsettings.json
 /CoMentor.API/appsettings.Development.json
