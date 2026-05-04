@@ -7,5 +7,6 @@ namespace CoMentor.Application.Interfaces
     {
         Task<ParentDashboardDto> GetDashboardAsync(int parentId);
         Task<List<AnnouncementDto>> GetMessagesAsync(int parentId);
+        Task<List<StudyScheduleDto>> GetStudentScheduleAsync(int parentId);
     }
 }

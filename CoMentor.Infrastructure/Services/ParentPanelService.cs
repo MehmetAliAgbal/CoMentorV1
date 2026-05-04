@@ -145,5 +145,36 @@ namespace CoMentor.Infrastructure.Services
                 return $"{studentName}'in deneme sınavı sonuçları giderek şekilleniyor. Genel gelişimi takip edebilmek için düzenli deneme çözmeye devam etmesi önemli.";
             }
         }
+        public async Task<List<StudyScheduleDto>> GetStudentScheduleAsync(int parentId)
+        {
+            var parent = await _db.Parents.FirstOrDefaultAsync(p => p.Id == parentId);
+            if (parent == null)
+                return new List<StudyScheduleDto>();
+
+            var schedules = await _db.StudySchedules
+                .Include(s => s.Subject)
+                .Where(s => s.UserId == parent.StudentId && s.IsActive)
+                .OrderBy(s => s.DayOfWeek)
+                .ThenBy(s => s.StartTime)
+                .ToListAsync();
+
+            var dtos = schedules.Select(s => new StudyScheduleDto
+            {
+                Id = s.Id,
+                SubjectId = s.SubjectId,
+                SubjectName = s.Subject?.Name ?? "",
+                SubjectShortName = s.Subject?.ShortName ?? "",
+                SubjectColorHex = s.Subject?.ColorHex ?? "#ccc",
+                DayOfWeek = s.DayOfWeek,
+                DayName = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)s.DayOfWeek),
+                StartTime = s.StartTime.ToString("HH:mm"),
+                EndTime = s.EndTime.ToString("HH:mm"),
+                DurationMinutes = (int)(s.EndTime - s.StartTime).TotalMinutes,
+                Topic = s.Topic,
+                IsActive = s.IsActive
+            }).ToList();
+
+            return dtos;
+        }
     }
 }

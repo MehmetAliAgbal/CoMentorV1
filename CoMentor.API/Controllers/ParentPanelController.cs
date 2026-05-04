@@ -77,5 +77,22 @@ namespace CoMentor.API.Controllers
                 return BadRequest(new { Message = ex.Message });
             }
         }
+        [HttpGet("student-schedule")]
+        public async Task<IActionResult> GetStudentSchedule()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int parentId))
+                return Unauthorized(new { Message = "Sistem üzerinden geçerli bir Veli kimliği bulunamadı." });
+
+            try
+            {
+                var schedule = await _parentPanelService.GetStudentScheduleAsync(parentId);
+                return Ok(schedule);
+            }
+            catch (System.Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
     }
 }
