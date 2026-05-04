@@ -146,9 +146,23 @@ public class AIStudyCoachService : IAIStudyCoachService
             var newVideoRecommendations = new List<VideoRecommendation>();
             var fetchedQueries = new HashSet<string>();
             
-            // Eski aktif programları pasife çekelim (opsiyonel, şimdilik yapmıyoruz)
+            // Eski aktif programları pasife çekiyoruz
+            var oldSchedules = await _db.StudySchedules
+                .Where(s => s.UserId == userId && s.IsActive)
+                .ToListAsync();
+            
+            foreach (var old in oldSchedules)
+            {
+                old.IsActive = false;
+            }
 
-            foreach (var s in aiOptions)
+            // AI'ın aynı gün ve aynı saate birden fazla kayıt atması durumunu engelliyoruz
+            var uniqueAiOptions = aiOptions
+                .GroupBy(x => new { x.DayOfWeek, x.StartTime })
+                .Select(g => g.First())
+                .ToList();
+
+            foreach (var s in uniqueAiOptions)
             {
                 var subject = allSubjects.FirstOrDefault(sub => sub.Name.Equals(s.SubjectName, StringComparison.OrdinalIgnoreCase));
                 if (subject == null) continue; 
