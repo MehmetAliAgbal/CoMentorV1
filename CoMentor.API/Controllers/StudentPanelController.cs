@@ -66,6 +66,13 @@ public class StudentPanelController : ControllerBase
         return Ok(result);
     }
     
+    [HttpGet("appointments/teachers")]
+    public async Task<IActionResult> GetAvailableTeachers()
+    {
+        var teachers = await _appointmentService.GetAvailableTeachersAsync();
+        return Ok(teachers);
+    }
+    
     [HttpPost("appointments/request")]
     public async Task<IActionResult> RequestAppointment([FromBody] RequestAppointmentDto request)
     {

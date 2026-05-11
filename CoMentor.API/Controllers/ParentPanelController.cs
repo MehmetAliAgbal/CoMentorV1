@@ -59,6 +59,12 @@ namespace CoMentor.API.Controllers
                 return BadRequest(new { Message = ex.Message });
             }
         }
+        [HttpGet("appointments/teachers")]
+        public async Task<IActionResult> GetAvailableTeachers()
+        {
+            var teachers = await _appointmentService.GetAvailableTeachersAsync();
+            return Ok(teachers);
+        }
 
         [HttpPost("appointments/request")]
         public async Task<IActionResult> RequestAppointment([FromBody] RequestAppointmentDto request)

@@ -18,5 +18,8 @@ namespace CoMentor.Application.Interfaces
         
         // İptal İşlemi (Her iki taraf yapabilir, yetkiye göre controller kontrol eder)
         Task<bool> CancelAppointmentAsync(int appointmentId);
+        
+        // Öğretmenleri listeleme (Randevu almak için)
+        Task<List<TeacherDto>> GetAvailableTeachersAsync();
     }
 }

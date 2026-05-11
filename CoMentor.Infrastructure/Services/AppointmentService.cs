@@ -104,6 +104,21 @@ namespace CoMentor.Infrastructure.Services
             return true;
         }
 
+        public async Task<List<TeacherDto>> GetAvailableTeachersAsync()
+        {
+            return await _db.Teachers
+                .Select(t => new TeacherDto
+                {
+                    Id = t.Id,
+                    Email = t.Email,
+                    Name = t.Name,
+                    Surname = t.Surname,
+                    Branch = t.Branch,
+                    AvatarUrl = t.AvatarUrl
+                })
+                .ToListAsync();
+        }
+
         // Helper Map Method
         private async Task<AppointmentDto> GetAppointmentDtoAsync(int appointmentId)
         {
