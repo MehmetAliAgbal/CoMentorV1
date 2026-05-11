@@ -15,10 +15,12 @@ namespace CoMentor.Infrastructure.Services
     {
         private readonly AppDbContext _db;
         private readonly ChatClient _chatClient;
+        private readonly ITrialExamService _trialExamService;
 
-        public ParentPanelService(AppDbContext db, IConfiguration configuration)
+        public ParentPanelService(AppDbContext db, IConfiguration configuration, ITrialExamService trialExamService)
         {
             _db = db;
+            _trialExamService = trialExamService;
             var apiKey = configuration["AIService:ApiKey"];
             var model = configuration["AIService:Model"] ?? "gpt-4o";
 
@@ -175,6 +177,15 @@ namespace CoMentor.Infrastructure.Services
             }).ToList();
 
             return dtos;
+        }
+
+        public async Task<TrialExamDto?> GetStudentTrialExamDetailAsync(int parentId, int trialId)
+        {
+            var parent = await _db.Parents.FirstOrDefaultAsync(p => p.Id == parentId);
+            if (parent == null)
+                return null;
+
+            return await _trialExamService.GetTrialExamByIdAsync(parent.StudentId, trialId);
         }
     }
 }

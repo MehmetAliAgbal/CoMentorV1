@@ -100,5 +100,29 @@ namespace CoMentor.API.Controllers
                 return BadRequest(new { Message = ex.Message });
             }
         }
+
+        [HttpGet("trial-exams/{id}")]
+        public async Task<IActionResult> GetTrialExamDetail(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int parentId))
+            {
+                return Unauthorized(new { Message = "Sistem üzerinden geçerli bir Veli kimliği bulunamadı." });
+            }
+
+            try
+            {
+                var examDetail = await _parentPanelService.GetStudentTrialExamDetailAsync(parentId, id);
+                if (examDetail == null)
+                {
+                    return NotFound(new { Message = "Deneme sınavı bulunamadı veya bu sınava erişim yetkiniz yok." });
+                }
+                return Ok(examDetail);
+            }
+            catch (System.Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
     }
 }
